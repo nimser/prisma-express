@@ -1,6 +1,9 @@
 import { Prisma, PrismaClient } from "@prisma/client"
 import { RequestHandler } from "express"
+import Posts from "../models/Posts"
+
 const prisma = new PrismaClient()
+const posts = Posts(prisma.post)
 
 const create: RequestHandler = async (req, res) => {
   const { title, content, authorEmail } = req.body
@@ -14,7 +17,7 @@ const create: RequestHandler = async (req, res) => {
   res.json(result)
 }
 
-const update: RequestHandler = async (req, res) => {
+const incrementViews: RequestHandler = async (req, res) => {
   const { id } = req.params
 
   try {
@@ -53,7 +56,6 @@ const publish: RequestHandler = async (req, res) => {
     res.json({ error: `Post with ID ${id} does not exist in the database` })
   }
 }
-
 const remove: RequestHandler = async (req, res) => {
   const { id } = req.params
   const post = await prisma.post.delete({
@@ -76,29 +78,16 @@ const read: RequestHandler = async (req, res) => {
 const browse: RequestHandler = async (req, res) => {
   const { searchString, skip, take, orderBy } = req.query
 
-  const or: Prisma.PostWhereInput = searchString
-    ? {
-        OR: [
-          { title: { contains: searchString as string } },
-          { content: { contains: searchString as string } },
-        ],
-      }
-    : {}
+  const results = await posts.getFeed(
+    searchString ? String(searchString) : undefined,
+    Number(skip) || undefined,
+    Number(take) || undefined,
+    ["asc", "desc"].includes(String(orderBy))
+      ? (orderBy as Prisma.SortOrder)
+      : undefined
+  )
 
-  const posts = await prisma.post.findMany({
-    where: {
-      published: true,
-      ...or,
-    },
-    include: { author: true },
-    take: Number(take) || undefined,
-    skip: Number(skip) || undefined,
-    orderBy: {
-      updatedAt: orderBy as Prisma.SortOrder,
-    },
-  })
-
-  res.json(posts)
+  res.json(results)
 }
 
-export { create, update, publish, remove, read, browse }
+export { create, incrementViews, publish, remove, read, browse }
